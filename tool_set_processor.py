@@ -15,10 +15,10 @@ def populate_db_from_excel(app_instance):
     try:
         # Use the app's context to work with the database session
         with app_instance.app_context():
-            # Check if data already exists (simple check on themes)
-            if db.session.query(Theme).first():
-                logging.info("Database already contains data. Skipping population.")
-                return
+            # Always reload data on every deploy (do not skip if data exists)
+            # if db.session.query(Theme).first():
+            #     logging.info("Database already contains data. Skipping population.")
+            #     return
 
             logging.info("Reading tool_set.xlsx...")
             try:
