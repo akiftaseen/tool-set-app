@@ -5,7 +5,16 @@ import random
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'  # Replace with a secure key
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqlconnector://root:password@localhost/tool_set_db'
+
+# Use environment variable for database URL if available (for cloud deployment)
+# Otherwise use local MySQL database
+import os
+database_url = os.environ.get('DATABASE_URL', 'mysql+mysqlconnector://root:password@localhost/tool_set_db')
+# Fix for Postgres database URLs from Render or Heroku
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
