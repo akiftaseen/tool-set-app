@@ -5,6 +5,9 @@ import logging
 from models import db, Theme, Subtheme, Category, Name, NameCategory
 from config import DATABASE_URL # Use the same config as the app
 
+def safe_str(val):
+    return str(val).strip() if not pd.isna(val) else ""
+
 def populate_db_from_excel(app_instance):
     """Reads data from tool_set.xlsx and populates the database."""
     logging.info("Starting database population from tool_set.xlsx...")
@@ -37,12 +40,11 @@ def populate_db_from_excel(app_instance):
             logging.info("Processing Excel data and inserting into database...")
             for col in df.columns:
                 theme_name, subtheme_name_orig, category_name = col
-                
-                # Skip if any part of the hierarchy is NaN or empty strings
-                if pd.isna(theme_name) or not theme_name.strip() or \
-                   pd.isna(subtheme_name_orig) or not subtheme_name_orig.strip() or \
-                   pd.isna(category_name) or not category_name.strip():
-                    # logging.warning(f"Skipping column with missing/empty values: {col}")
+                theme_name = safe_str(theme_name)
+                subtheme_name_orig = safe_str(subtheme_name_orig)
+                category_name = safe_str(category_name)
+                # Skip if any part of the hierarchy is empty after conversion
+                if not theme_name or not subtheme_name_orig or not category_name:
                     continue
 
                 # --- Theme --- 
