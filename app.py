@@ -180,27 +180,138 @@ def admin():
 @login_required
 def update_data():
     data = request.json
-    with db.session.begin():
-        if 'type' in data:
-            if data['type'] == 'toggle':
-                name_id = data['name_id']
-                category_id = data['category_id']
-                checked = data['checked']
-                if checked:
-                    db.session.execute(NameCategory.__table__.insert().values(name_id=name_id, category_id=category_id).prefix_with('IGNORE'))
+    response_data = {'status': 'success'} # Prepare response data
+
+    try:
+        # Use db.session.begin() for the outer transaction management
+        with db.session.begin(): 
+            if 'type' in data:
+                action_type = data.get('type')
+                logging.info(f"Admin update action: {action_type} with data: {data}")
+
+                if action_type == 'toggle':
+                    name_id = data.get('name_id')
+                    category_id = data.get('category_id')
+                    checked = data.get('checked')
+
+                    if name_id is None or category_id is None or checked is None:
+                        raise ValueError("Missing data for toggle action")
+
+                    assoc = db.session.query(NameCategory).filter_by(name_id=name_id, category_id=category_id).first()
+
+                    if checked:
+                        if not assoc:
+                            new_assoc = NameCategory(name_id=name_id, category_id=category_id)
+                            db.session.add(new_assoc)
+                            logging.info(f"Added association: Name ID {name_id}, Category ID {category_id}")
+                        else:
+                            logging.info(f"Association already exists: Name ID {name_id}, Category ID {category_id}")
+                    else:
+                        if assoc:
+                            db.session.delete(assoc)
+                            logging.info(f"Deleted association: Name ID {name_id}, Category ID {category_id}")
+                        else:
+                            logging.info(f"Association not found for deletion: Name ID {name_id}, Category ID {category_id}")
+
+                elif action_type == 'add_theme':
+                    name = data.get('name', '').strip()
+                    if not name: raise ValueError("Theme name cannot be empty")
+                    existing = db.session.query(Theme).filter_by(name=name).first()
+                    if not existing:
+                        new_theme = Theme(name=name)
+                        db.session.add(new_theme)
+                        db.session.flush() # Flush to get ID if needed
+                        response_data['new_id'] = new_theme.id
+                        logging.info(f"Added Theme: {name} (ID: {new_theme.id})")
+                    else:
+                        response_data['status'] = 'ignored'
+                        response_data['message'] = 'Theme already exists'
+                        logging.info(f"Theme already exists: {name}")
+
+
+                elif action_type == 'add_subtheme':
+                    name = data.get('name', '').strip()
+                    theme_id = data.get('theme_id')
+                    if not name or theme_id is None: raise ValueError("Subtheme name or theme_id missing")
+                    existing = db.session.query(Subtheme).filter_by(theme_id=theme_id, name=name).first()
+                    if not existing:
+                        new_subtheme = Subtheme(theme_id=theme_id, name=name)
+                        db.session.add(new_subtheme)
+                        db.session.flush()
+                        response_data['new_id'] = new_subtheme.id
+                        logging.info(f"Added Subtheme: {name} to Theme ID {theme_id} (ID: {new_subtheme.id})")
+                    else:
+                        response_data['status'] = 'ignored'
+                        response_data['message'] = 'Subtheme already exists for this theme'
+                        logging.info(f"Subtheme already exists: {name} for Theme ID {theme_id}")
+
+                elif action_type == 'add_category':
+                    name = data.get('name', '').strip()
+                    subtheme_id = data.get('subtheme_id')
+                    if not name or subtheme_id is None: raise ValueError("Category name or subtheme_id missing")
+                    existing = db.session.query(Category).filter_by(subtheme_id=subtheme_id, name=name).first()
+                    if not existing:
+                        new_category = Category(subtheme_id=subtheme_id, name=name)
+                        db.session.add(new_category)
+                        db.session.flush()
+                        response_data['new_id'] = new_category.id
+                        logging.info(f"Added Category: {name} to Subtheme ID {subtheme_id} (ID: {new_category.id})")
+                    else:
+                        response_data['status'] = 'ignored'
+                        response_data['message'] = 'Category already exists for this subtheme'
+                        logging.info(f"Category already exists: {name} for Subtheme ID {subtheme_id}")
+
+                elif action_type == 'add_name':
+                    name = data.get('name', '').strip()
+                    if not name: raise ValueError("Name cannot be empty")
+                    existing = db.session.query(Name).filter_by(name=name).first()
+                    if not existing:
+                        new_name = Name(name=name)
+                        db.session.add(new_name)
+                        db.session.flush()
+                        response_data['new_id'] = new_name.id
+                        logging.info(f"Added Name: {name} (ID: {new_name.id})")
+                    else:
+                        response_data['status'] = 'ignored'
+                        response_data['message'] = 'Name already exists'
+                        logging.info(f"Name already exists: {name}")
+
+                elif action_type == 'delete_name':
+                    name_id = data.get('name_id')
+                    if name_id is None: raise ValueError("Missing name_id for delete action")
+                    
+                    # 1. Delete associations first
+                    db.session.query(NameCategory).filter_by(name_id=name_id).delete()
+                    logging.info(f"Deleted associations for Name ID: {name_id}")
+
+                    # 2. Delete the name itself
+                    name_to_delete = db.session.query(Name).get(name_id)
+                    if name_to_delete:
+                        db.session.delete(name_to_delete)
+                        logging.info(f"Deleted Name: {name_to_delete.name} (ID: {name_id})")
+                    else:
+                        logging.warning(f"Name ID {name_id} not found for deletion.")
+                        response_data['status'] = 'ignored'
+                        response_data['message'] = 'Name not found'
+                
                 else:
-                    db.session.execute(NameCategory.__table__.delete().where(NameCategory.name_id == name_id).where(NameCategory.category_id == category_id))
-            elif data['type'] == 'add_theme':
-                db.session.execute(Theme.__table__.insert().values(name=data['name']).prefix_with('IGNORE'))
-            elif data['type'] == 'add_subtheme':
-                db.session.execute(Subtheme.__table__.insert().values(theme_id=data['theme_id'], name=data['name']).prefix_with('IGNORE'))
-            elif data['type'] == 'add_category':
-                db.session.execute(Category.__table__.insert().values(subtheme_id=data['subtheme_id'], name=data['name']).prefix_with('IGNORE'))
-            elif data['type'] == 'add_name':
-                db.session.execute(Name.__table__.insert().values(name=data['name']).prefix_with('IGNORE'))
-            elif data['type'] == 'delete_name':
-                Name.query.filter_by(id=data['name_id']).delete()
-    return jsonify({'status': 'success'})
+                     raise ValueError(f"Unknown action type: {action_type}")
+
+        # The 'with db.session.begin():' block handles commit/rollback automatically
+        logging.info("Admin update transaction completed successfully.")
+
+    except ValueError as ve:
+        # Rollback is handled automatically by exiting the 'with' block on error
+        logging.error(f"Validation error during admin update: {ve}")
+        response_data = {'status': 'error', 'message': str(ve)}
+        return jsonify(response_data), 400 # Bad request
+    except Exception as e:
+        # Rollback is handled automatically by exiting the 'with' block on error
+        logging.error(f"Error during admin update: {e}", exc_info=True)
+        response_data = {'status': 'error', 'message': 'An internal error occurred.'}
+        return jsonify(response_data), 500 # Internal server error
+
+    return jsonify(response_data)
 
 @app.route('/_health')
 def health_check():
