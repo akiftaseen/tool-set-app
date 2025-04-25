@@ -7,9 +7,10 @@ from plotly.subplots import make_subplots
 import pandas as pd
 from sqlalchemy import create_engine, func, text
 import numpy as np
+from config import DATABASE_URL
 
-# Connect to MySQL database (update credentials as needed)
-engine = create_engine('mysql+mysqlconnector://root:password@localhost/tool_set_db')
+# Connect to database using DATABASE_URL from config.py
+engine = create_engine(DATABASE_URL)
 
 # Load data from tables
 themes_df = pd.read_sql('SELECT * FROM themes', engine)
