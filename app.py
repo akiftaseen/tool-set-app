@@ -6,16 +6,18 @@ import random
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'  # Replace with a secure key
 
-# Use environment variable for database URL if available (for cloud deployment)
-# Otherwise use local MySQL database
-import os
-database_url = os.environ.get('DATABASE_URL', 'mysql+mysqlconnector://root:password@localhost/tool_set_db')
-# Fix for Postgres database URLs from Render or Heroku
-if database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql://", 1)
+# Import database configuration
+from config import DATABASE_URL
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+# Configure SQLAlchemy with the appropriate database URL
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Additional configuration for PostgreSQL if needed
+if 'postgresql' in DATABASE_URL:
+    # Disable the "prefix" feature in PostgreSQL which is incompatible with MySQL's IGNORE
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'postgresql_use_native_options': False}
+
 db = SQLAlchemy(app)
 
 # We'll import and initialize the Dash app after creating the Flask app
