@@ -15,6 +15,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+# Automatically create all tables on startup (avoids needing the shell)
+with app.app_context():
+    db.create_all()
+
 # We'll import and initialize the Dash app after creating the Flask app
 from dashboard import get_dash_app
 dash_app = get_dash_app()
