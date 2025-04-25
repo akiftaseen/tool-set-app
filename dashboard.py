@@ -9,31 +9,21 @@ from sqlalchemy import create_engine, func, text
 import numpy as np
 from config import DATABASE_URL
 
-# Connect to database using DATABASE_URL from config.py
-engine = create_engine(DATABASE_URL)
-
-# Load data from tables
-themes_df = pd.read_sql('SELECT * FROM themes', engine)
-subthemes_df = pd.read_sql('SELECT * FROM subthemes', engine)
-categories_df = pd.read_sql('SELECT * FROM categories', engine)
-names_df = pd.read_sql('SELECT * FROM names', engine)
-name_categories_df = pd.read_sql('SELECT * FROM name_categories', engine)
-
-# Merge data into a single DataFrame
-merged_df = name_categories_df.merge(names_df, left_on='name_id', right_on='id', suffixes=('_nc', '_name'))
-merged_df = merged_df.merge(categories_df, left_on='category_id', right_on='id', suffixes=('_name', '_cat'))
-merged_df = merged_df.merge(subthemes_df, left_on='subtheme_id', right_on='id', suffixes=('_cat', '_sub'))
-merged_df = merged_df.merge(themes_df, left_on='theme_id', right_on='id', suffixes=('_sub', '_theme'))
-
-# Select and rename relevant columns
-data = merged_df[['name_name', 'name_cat', 'name_sub', 'name_theme']]
-data.columns = ['Name', 'Category', 'Subtheme', 'Theme']
-
-# Add count data for summary metrics
-theme_counts = data.groupby('Theme').size().reset_index(name='Count')
-subtheme_counts = data.groupby(['Theme', 'Subtheme']).size().reset_index(name='Count')
-category_counts = data.groupby(['Theme', 'Subtheme', 'Category']).size().reset_index(name='Count')
-name_counts = data['Name'].nunique()
+# Function to load data from database
+def load_data():
+    engine = create_engine(DATABASE_URL)
+    themes_df = pd.read_sql('SELECT * FROM themes', engine)
+    subthemes_df = pd.read_sql('SELECT * FROM subthemes', engine)
+    categories_df = pd.read_sql('SELECT * FROM categories', engine)
+    names_df = pd.read_sql('SELECT * FROM names', engine)
+    name_categories_df = pd.read_sql('SELECT * FROM name_categories', engine)
+    merged_df = name_categories_df.merge(names_df, left_on='name_id', right_on='id', suffixes=('_nc', '_name'))
+    merged_df = merged_df.merge(categories_df, left_on='category_id', right_on='id', suffixes=('_name', '_cat'))
+    merged_df = merged_df.merge(subthemes_df, left_on='subtheme_id', right_on='id', suffixes=('_cat', '_sub'))
+    merged_df = merged_df.merge(themes_df, left_on='theme_id', right_on='id', suffixes=('_sub', '_theme'))
+    data = merged_df[['name_name', 'name_cat', 'name_sub', 'name_theme']]
+    data.columns = ['Name', 'Category', 'Subtheme', 'Theme']
+    return data, themes_df, subthemes_df, categories_df, names_df, name_categories_df
 
 # Create a color palette for consistent visualization
 COLORS = {
@@ -67,6 +57,7 @@ dash_app = None
 
 # Define the layout to be used in get_dash_app()
 def create_layout():
+    data, themes_df, subthemes_df, categories_df, names_df, name_categories_df = load_data()
     return html.Div([
         # Navbar
         html.Nav([
@@ -105,7 +96,7 @@ def create_layout():
                             html.I(className='fas fa-layer-group fa-2x text-primary'),
                             html.Div([
                                 html.H5('Total Themes', className='card-title mb-0'),
-                                html.H2(f"{len(theme_counts)}", className='fs-1 fw-bold text-primary')
+                                html.H2(f"{len(data['Theme'].unique())}", className='fs-1 fw-bold text-primary')
                             ], className='ms-3')
                         ], className='d-flex align-items-center')
                     ], className='card-body')
@@ -118,7 +109,7 @@ def create_layout():
                             html.I(className='fas fa-sitemap fa-2x text-success'),
                             html.Div([
                                 html.H5('Total Subthemes', className='card-title mb-0'),
-                                html.H2(f"{len(subtheme_counts)}", className='fs-1 fw-bold text-success')
+                                html.H2(f"{len(data['Subtheme'].unique())}", className='fs-1 fw-bold text-success')
                             ], className='ms-3')
                         ], className='d-flex align-items-center')
                     ], className='card-body')
@@ -131,7 +122,7 @@ def create_layout():
                             html.I(className='fas fa-tags fa-2x text-warning'),
                             html.Div([
                                 html.H5('Total Categories', className='card-title mb-0'),
-                                html.H2(f"{len(category_counts)}", className='fs-1 fw-bold text-warning')
+                                html.H2(f"{len(data['Category'].unique())}", className='fs-1 fw-bold text-warning')
                             ], className='ms-3')
                         ], className='d-flex align-items-center')
                     ], className='card-body')
@@ -144,7 +135,7 @@ def create_layout():
                             html.I(className='fas fa-file-alt fa-2x text-info'),
                             html.Div([
                                 html.H5('Total Names', className='card-title mb-0'),
-                                html.H2(f"{name_counts}", className='fs-1 fw-bold text-info')
+                                html.H2(f"{data['Name'].nunique()}", className='fs-1 fw-bold text-info')
                             ], className='ms-3')
                         ], className='d-flex align-items-center')
                     ], className='card-body')
@@ -284,6 +275,10 @@ def create_layout():
 
 # This function will be used to register callbacks
 def register_callbacks(app):
+    def get_data():
+        data, _, _, _, _, _ = load_data()
+        return data
+
     # Main chart update callback
     @app.callback(
         [Output('bar-chart', 'figure'),
@@ -311,7 +306,7 @@ def register_callbacks(app):
             selected_categories = None
             
         # Start with full dataset
-        filtered_data = data
+        filtered_data = get_data()
         
         # Apply filters
         if selected_themes:
@@ -495,11 +490,11 @@ def register_callbacks(app):
     def update_subtheme_options(selected_themes, n_clicks, current_value):
         ctx = dash.callback_context
         if ctx.triggered and 'reset-filters' in ctx.triggered[0]['prop_id']:
-            df = data
+            df = get_data()
             subthemes = df['Subtheme'].unique()
             return [{'label': sub, 'value': sub} for sub in subthemes], None
             
-        df = data
+        df = get_data()
         if selected_themes:
             df = df[df['Theme'].isin(selected_themes)]
             
@@ -525,11 +520,11 @@ def register_callbacks(app):
     def update_category_options(selected_themes, selected_subthemes, n_clicks, current_value):
         ctx = dash.callback_context
         if ctx.triggered and 'reset-filters' in ctx.triggered[0]['prop_id']:
-            df = data
+            df = get_data()
             categories = df['Category'].unique()
             return [{'label': cat, 'value': cat} for cat in categories], None
             
-        df = data
+        df = get_data()
         if selected_themes:
             df = df[df['Theme'].isin(selected_themes)]
         if selected_subthemes:
