@@ -2,6 +2,10 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from flask_sqlalchemy import SQLAlchemy
 from functools import wraps
 import random
+import logging
+import os
+
+logging.basicConfig(level=logging.INFO)  # Add basic logging
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key'  # Replace with a secure key
@@ -15,12 +19,22 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # Create tables *before* initializing Dash app
-with app.app_context():
-    db.create_all()
+logging.info("Attempting to create database tables...")  # Log before
+try:
+    with app.app_context():
+        db.create_all()
+    logging.info("Database tables should be created (or already exist).")  # Log after
+except Exception as e:
+    logging.error(f"Error during db.create_all(): {e}", exc_info=True)  # Log any errors
 
 # Now import and initialize the Dash app
+logging.info("Importing and initializing Dash app...")  # Log before Dash init
 from dashboard import get_dash_app
-dash_app = get_dash_app(app)  # Pass the Flask app instance
+try:
+    dash_app = get_dash_app(app)  # Pass the Flask app instance
+    logging.info("Dash app initialized.")  # Log after Dash init
+except Exception as e:
+    logging.error(f"Error during Dash app initialization: {e}", exc_info=True)  # Log Dash errors
 
 # Models
 class Theme(db.Model):
@@ -199,5 +213,12 @@ def update_data():
                 Name.query.filter_by(id=data['name_id']).delete()
     return jsonify({'status': 'success'})
 
+# Add a simple root route for health check if needed
+@app.route('/_health')
+def health_check():
+    return "OK", 200
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)  # Allow external connections
+    # This part is mainly for local development, Render uses Gunicorn
+    port = int(os.environ.get('PORT', 5001))
+    app.run(debug=True, host='0.0.0.0', port=port)
