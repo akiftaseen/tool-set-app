@@ -24,6 +24,10 @@ def populate_db_from_excel(app_instance):
             try:
                 df = pd.read_excel('tool_set.xlsx', header=[0, 1, 2], index_col=0)
                 logging.info("Excel file read successfully.")
+                # Add debug logging for Excel structure
+                logging.info(f"Excel columns: {df.columns}")
+                logging.info(f"Excel columns nlevels: {df.columns.nlevels}")
+                logging.info(f"First 5 rows:\n{df.head()}")
             except FileNotFoundError:
                 logging.error("Error: tool_set.xlsx not found. Cannot populate database.")
                 return
