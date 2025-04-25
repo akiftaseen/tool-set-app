@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tool Set - Admin Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { 
+            background: #f8fafc; 
+            font-family: 'Roboto', sans-serif;
+        }
+        .navbar-brand { 
+            font-weight: bold; 
+        }
+        .admin-header { 
+            margin-top: 30px; 
+            margin-bottom: 30px;
+        }
+        .table-responsive { 
+            margin-top: 30px; 
+            border-radius: 0;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 70vh;
+            position: relative;
+        }
+        #add-name-row {
+            position: sticky;
+            bottom: 0;
+            background-color: #f8f9fa;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            z-index: 5;
+        }
+        .add-controls { 
+            background: #ffffff; 
+            border-radius: 8px; 
+            padding: 30px; 
+            margin-bottom: 30px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .add-item-section { 
+            margin-top: 15px; 
+            padding-top: 15px; 
+            border-top: 1px dashed #e0e0e0; 
+        }
+        .delete-btn { 
+            cursor: pointer; 
+            color: #d62728; 
+            font-size: 18px; 
+            vertical-align: middle; 
+            float: right;
+            transition: transform 0.2s ease;
+        }
+        .delete-btn:hover {
+            transform: scale(1.2);
+            color: #b71c1c;
+        }
+        .vertical-text { 
+            writing-mode: vertical-rl; 
+            transform: rotate(180deg); 
+            white-space: nowrap; 
+            font-size: 13px; 
+            font-weight: 500;
+            color: #555;
+        }
+        th, td { 
+            white-space: nowrap;
+            padding: 10px !important; 
+        }
+        .sticky-col { 
+            position: sticky; 
+            left: 0; 
+            background: #f8f8f8; 
+            z-index: 2; 
+            min-width: 200px; 
+            width: 200px;
+            border-right: 2px solid #e9ecef;
+        }
+        .sticky-col-content { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            width: 100%;
+            padding: 4px 0;
+        }
+        .table thead th { 
+            background: #e9ecef;
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .sticky-col.table thead th {
+            z-index: 4;
+        }
+        .table-hover tbody tr:hover td { 
+            background: #eaf2fd; 
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-weight: 500;
+            padding: 15px 20px;
+        }
+        .card-body {
+            padding: 20px;
+        }
+        .btn-primary {
+            background-color: #1f77b4;
+            border-color: #1f77b4;
+        }
+        .btn-primary:hover {
+            background-color: #1a6699;
+            border-color: #1a6699;
+        }
+        .btn-success {
+            background-color: #2ca02c;
+            border-color: #2ca02c;
+        }
+        .btn-success:hover {
+            background-color: #258825;
+            border-color: #258825;
+        }
+        .form-label {
+            font-weight: 500;
+            color: #444;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #1f77b4;
+            box-shadow: 0 0 0 0.25rem rgba(31, 119, 180, 0.25);
+        }
+        .section-icon {
+            margin-right: 10px;
+            color: #1f77b4;
+        }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .custom-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+        .custom-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #1f77b4;
+        }
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+        .form-check-input:checked {
+            background-color: #1f77b4;
+            border-color: #1f77b4;
+        }
+        @media (max-width: 900px) {
+            .vertical-text { 
+                font-size: 11px; 
+            }
+        }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="/"><i class="fas fa-tools me-2"></i>Tool Set</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-home me-1"></i>Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="/dashboard/"><i class="fas fa-chart-bar me-1"></i>Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link active" href="/admin"><i class="fas fa-user-shield me-1"></i>Admin</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-1"></i>Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container admin-header">
+    <div class="d-sm-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 mb-0 text-gray-800"><i class="fas fa-cogs me-2 text-primary"></i>Admin Management</h1>
+        <div class="header-actions">
+            <button class="btn btn-outline-primary" id="refresh-btn">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+        </div>
+    </div>
+    
+    <div class="card add-controls">
+        <div class="card-header bg-white d-flex align-items-center">
+            <i class="fas fa-plus-circle text-success section-icon fa-lg"></i>
+            <h4 class="mb-0">Add New Items</h4>
+        </div>
+        <div class="card-body">
+            <form id="add-items-form">
+                <div class="row g-3 align-items-center add-item-section">
+                    <div class="col-md-2">
+                        <label class="form-label mb-0 fw-bold"><i class="fas fa-layer-group text-primary me-2"></i>Theme:</label>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" id="new-theme-name" class="form-control" placeholder="New Theme Name">
+                    </div>
+                    <div class="col-md-4">
+                        <button id="add-theme-btn" class="btn btn-success"><i class="fas fa-plus me-1"></i>Add Theme</button>
+                    </div>
+                </div>
+                <div class="row g-3 align-items-center add-item-section">
+                    <div class="col-md-2">
+                        <label class="form-label mb-0 fw-bold"><i class="fas fa-sitemap text-success me-2"></i>Subtheme:</label>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="add-subtheme-theme-select" class="form-select">
+                            <option value="">Select Theme</option>
+                            {% for theme in themes %}
+                                <option value="{{ theme.id }}">{{ theme.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" id="new-subtheme-name" class="form-control" placeholder="New Subtheme Name">
+                    </div>
+                    <div class="col-md-4">
+                        <button id="add-subtheme-btn" class="btn btn-success"><i class="fas fa-plus me-1"></i>Add Subtheme</button>
+                    </div>
+                </div>
+                <div class="row g-3 align-items-center add-item-section">
+                    <div class="col-md-2">
+                        <label class="form-label mb-0 fw-bold"><i class="fas fa-tags text-warning me-2"></i>Category:</label>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="add-category-subtheme-select" class="form-select">
+                            <option value="">Select Subtheme</option>
+                            {% for subtheme in subthemes %}
+                                <option value="{{ subtheme.id }}">{{ subtheme.theme.name }} - {{ subtheme.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" id="new-category-name" class="form-control" placeholder="New Category Name">
+                    </div>
+                    <div class="col-md-4">
+                        <button id="add-category-btn" class="btn btn-success"><i class="fas fa-plus me-1"></i>Add Category</button>
+                    </div>
+                </div>
+                <div class="row g-3 align-items-center add-item-section">
+                    <div class="col-md-2">
+                        <label class="form-label mb-0 fw-bold"><i class="fas fa-file-alt text-info me-2"></i>Name:</label>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" id="new-name-name" class="form-control" placeholder="New Name">
+                    </div>
+                    <div class="col-md-4">
+                        <button id="add-name-btn" class="btn btn-success"><i class="fas fa-plus me-1"></i>Add Name</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-table text-primary section-icon fa-lg"></i>
+                <h4 class="mb-0">Manage Names & Categories</h4>
+            </div>
+            <div class="d-flex align-items-center">
+                <i class="fas fa-search text-primary me-2"></i>
+                <input type="text" id="search-name-input" class="form-control" placeholder="Search names..." style="max-width: 300px;">
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table id="admin-table" class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th class="sticky-col bg-white">
+                                <div class="d-flex align-items-center">
+                                    <span class="fw-bold">Name</span>
+                                    <span class="ms-2 badge bg-primary rounded-pill">{{ names|length }}</span>
+                                </div>
+                            </th>
+                            {% for category in categories %}
+                                <th data-theme="{{ category.subtheme.theme.name }}" data-subtheme="{{ category.subtheme.name }}" data-category="{{ category.name }}" class="text-center">
+                                    <div class="vertical-text">{{ category.name }}</div>
+                                </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name in names %}
+                        <tr data-name="{{ name.name | string | lower }}">
+                            <td class="sticky-col">
+                                <div class="sticky-col-content">
+                                    <span>{{ name.name }}</span>
+                                    <span class="delete-btn" data-name-id="{{ name.id }}" title="Delete name"><i class="fas fa-times-circle"></i></span>
+                                </div>
+                            </td>
+                            {% for category in categories %}
+                                {% set is_checked = name.id in name_category_map and category.id in name_category_map[name.id] %}
+                                <td data-theme="{{ category.subtheme.theme.name }}" data-subtheme="{{ category.subtheme.name }}" data-category="{{ category.name }}" class="text-center">
+                                    <div class="form-check d-flex justify-content-center">
+                                        <input type="checkbox" class="form-check-input assoc-check"
+                                            data-name-id="{{ name.id }}"
+                                            data-category-id="{{ category.id }}"
+                                            {% if is_checked %}checked{% endif %}>
+                                    </div>
+                                </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                        <tr id="add-name-row" class="bg-light">
+                            <td class="sticky-col">
+                                <div class="input-group">
+                                    <input type="text" id="new-name-input" class="form-control" placeholder="New Item">
+                                    <button id="add-name-inline-btn" class="btn btn-primary"><i class="fas fa-plus"></i></button>
+                                </div>
+                            </td>
+                            {% for category in categories %}
+                                <td data-theme="{{ category.subtheme.theme.name }}" data-subtheme="{{ category.subtheme.name }}" data-category="{{ category.name }}"></td>
+                            {% endfor %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Add a loading overlay
+        function showLoading() {
+            $('body').append('<div id="loading-overlay" style="position:fixed; top:0; left:0; right:0; bottom:0; background-color:rgba(255,255,255,0.7); z-index:9999; display:flex; justify-content:center; align-items:center;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>');
+        }
+        
+        function hideLoading() {
+            $('#loading-overlay').remove();
+        }
+
+        function sendUpdate(data) {
+            showLoading();
+            return $.ajax({
+                url: '{{ url_for("update_data") }}',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function(response) {
+                    console.log('Update successful:', response);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Update failed:', status, error);
+                    alert('An error occurred: ' + error);
+                },
+                complete: function() {
+                    hideLoading();
+                }
+            });
+        }
+
+        $('.assoc-check').change(function() {
+            const nameId = $(this).data('name-id');
+            const categoryId = $(this).data('category-id');
+            const isChecked = $(this).is(':checked');
+            sendUpdate({
+                type: 'toggle',
+                name_id: nameId,
+                category_id: categoryId,
+                checked: isChecked
+            });
+        });
+
+        $('#add-theme-btn').click(function() {
+            const themeName = $('#new-theme-name').val().trim();
+            if (themeName) {
+                sendUpdate({ type: 'add_theme', name: themeName }).done(() => location.reload());
+            } else {
+                showToast('Please enter a theme name.', 'warning');
+            }
+        });
+
+        $('#add-category-theme-select').change(function() {
+            const themeId = $(this).val();
+            const $subthemeSelect = $('#add-category-subtheme-select');
+            $subthemeSelect.prop('disabled', true).empty().append('<option value="">Select Subtheme</option>');
+            if (themeId) {
+                $.get('/api/subthemes', { theme_id: themeId }, function(data) {
+                    data.forEach(s => $subthemeSelect.append(`<option value="${s.id}">${s.name}</option>`));
+                    $subthemeSelect.prop('disabled', false);
+                });
+            }
+        });
+
+        $('#add-subtheme-btn').click(function() {
+            const themeId = $('#add-subtheme-theme-select').val();
+            const subthemeName = $('#new-subtheme-name').val().trim();
+            if (themeId && subthemeName) {
+                sendUpdate({ type: 'add_subtheme', theme_id: themeId, name: subthemeName }).done(() => location.reload());
+            } else {
+                alert('Please select a theme and enter a subtheme name.');
+            }
+        });
+
+        $('#add-category-btn').click(function() {
+            const subthemeId = $('#add-category-subtheme-select').val();
+            const categoryName = $('#new-category-name').val().trim();
+            if (subthemeId && categoryName) {
+                sendUpdate({ type: 'add_category', subtheme_id: subthemeId, name: categoryName }).done(() => location.reload());
+            } else {
+                alert('Please select a theme, subtheme, and enter a category name.');
+            }
+        });
+
+        $('#add-name-btn').click(function() {
+            const nameName = $('#new-name-name').val().trim();
+            if (nameName) {
+                sendUpdate({ type: 'add_name', name: nameName }).done(() => location.reload());
+            } else {
+                alert('Please enter a name.');
+            }
+        });
+
+        $('#add-name-inline-btn').click(function() {
+            const nameName = $('#new-name-input').val().trim();
+            if (nameName) {
+                sendUpdate({ type: 'add_name', name: nameName }).done(() => location.reload());
+            } else {
+                alert('Please enter a name.');
+            }
+        });
+
+        $('.delete-btn').click(function() {
+            if (confirm('Are you sure you want to delete this name and all its associations?')) {
+                const nameId = $(this).data('name-id');
+                sendUpdate({ type: 'delete_name', name_id: nameId }).done(() => location.reload());
+            }
+        });
+        
+        $('#refresh-btn').click(function() {
+            showLoading();
+            location.reload();
+        });
+
+        function applyFilters() {
+            const nameSearch = $('#search-name-input').val().toLowerCase().trim();
+
+            console.log("Filtering for name:", nameSearch);
+
+            // Row filtering based on name search
+            let visibleRowCount = 0;
+            $('#admin-table tbody tr[data-name]').each(function() {
+                const tr = $(this);
+                // Use attr() to get the raw string value and avoid jQuery type conversion
+                const name = tr.attr('data-name');
+                
+                if (typeof name === 'string') {
+                    const shouldShow = (nameSearch === '' || name.includes(nameSearch));
+                    tr.toggle(shouldShow);
+                    if (shouldShow) {
+                        visibleRowCount++;
+                    }
+                } else {
+                    // Log a warning if data-name is not as expected
+                    console.warn("Row data-name is not a string:", name, tr);
+                    tr.show(); // Default to showing the row if data is unexpected
+                }
+            });
+            
+            // Keep the "add new name" row visible
+            $('#add-name-row').show();
+        }
+
+        $('#search-name-input').on('input keypress', function(e) {
+            // Trigger filter on input, or on Enter key press
+            if (e.type === 'keypress' && e.which !== 13) {
+                return; // Ignore keypress unless it's Enter
+            }
+            applyFilters();
+        });
+
+        // Initial call to apply filters on page load
+        applyFilters();
+    });
+</script>
+</body>
+</html>
