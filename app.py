@@ -5,6 +5,7 @@ import random
 import logging
 import os
 from sqlalchemy import inspect
+from tool_set_processor import populate_db_from_excel
 
 logging.basicConfig(level=logging.INFO)  # Add basic logging
 
@@ -73,6 +74,14 @@ def create_tables(app_instance):
 logging.info("Calling create_tables function...")
 create_tables(app)
 logging.info("Finished calling create_tables function.")
+
+# Populate Database from Excel
+logging.info("Calling populate_db_from_excel function...")
+try:
+    populate_db_from_excel(app)
+    logging.info("Finished calling populate_db_from_excel function.")
+except Exception as e:
+    logging.error(f"Error during database population: {e}", exc_info=True)
 
 # Import and Initialize Dash App
 logging.info("Importing and initializing Dash app...")

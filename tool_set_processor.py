@@ -1,115 +1,124 @@
 import pandas as pd
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, ForeignKey, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, inspect
+import logging
 
-# Database connection (update with your MySQL credentials)
-engine = create_engine('mysql+mysqlconnector://root:password@localhost/tool_set_db', echo=True)
+# Import db object and models from app.py
+# Assuming app.py is in the same directory
+from app import db, Theme, Subtheme, Category, Name, NameCategory
+from config import DATABASE_URL # Use the same config as the app
 
-# Define metadata
-metadata = MetaData()
-
-# Define tables
-themes = Table('themes', metadata,
-    Column('id', Integer, primary_key=True, autoincrement=True),
-    Column('name', String(255), unique=True, nullable=False)
-)
-
-subthemes = Table('subthemes', metadata,
-    Column('id', Integer, primary_key=True, autoincrement=True),
-    Column('theme_id', Integer, ForeignKey('themes.id'), nullable=False),
-    Column('name', String(255), nullable=False),
-    mysql_engine='InnoDB'
-)
-
-categories = Table('categories', metadata,
-    Column('id', Integer, primary_key=True, autoincrement=True),
-    Column('subtheme_id', Integer, ForeignKey('subthemes.id'), nullable=False),
-    Column('name', String(255), nullable=False),
-    mysql_engine='InnoDB'
-)
-
-names = Table('names', metadata,
-    Column('id', Integer, primary_key=True, autoincrement=True),
-    Column('name', String(255), unique=True, nullable=False)
-)
-
-name_categories = Table('name_categories', metadata,
-    Column('name_id', Integer, ForeignKey('names.id'), primary_key=True),
-    Column('category_id', Integer, ForeignKey('categories.id'), primary_key=True),
-    mysql_engine='InnoDB'
-)
-
-# Create tables
-metadata.create_all(engine)
-
-# Read Excel file
-df = pd.read_excel('tool_set.xlsx', header=[0, 1, 2], index_col=0)
-
-# Print dataframe column headers to debug
-print("Excel file column headers structure:")
-print(f"Column levels: {df.columns.nlevels}")
-for level in range(df.columns.nlevels):
-    print(f"Level {level} unique values: {df.columns.get_level_values(level).unique().tolist()}")
-print("\nDetailed column headers (all):")
-for i, col in enumerate(df.columns):
-    theme, subtheme, category = col
-    print(f"Column {i}: Theme='{theme}', Subtheme='{subtheme}', Category='{category}'")
-
-# Display first few rows of the DataFrame to understand structure
-print("\nFirst 5 rows of the DataFrame:")
-print(df.head())
-
-# Process headers to extract themes, subthemes, and categories
-column_mapping = {}
-with engine.begin() as conn:  # Using begin() creates a transaction that will be committed automatically
-    # Insert themes
-    for theme in df.columns.get_level_values(0).unique():
-        if pd.notna(theme):  # Check if theme is not NaN
-            conn.execute(themes.insert().values(name=theme).prefix_with('IGNORE'))
+def populate_db_from_excel(app_instance):
+    """Reads data from tool_set.xlsx and populates the database."""
+    logging.info("Starting database population from tool_set.xlsx...")
     
-    # Insert subthemes and categories
-    for col in df.columns:
-        theme, subtheme, category = col
-        
-        # Skip if any part of the hierarchy is NaN
-        if pd.isna(theme) or pd.isna(subtheme) or pd.isna(category):
-            print(f"Skipping column with NaN values: {col}")
-            continue
-        
-        # Generate a meaningful subtheme name instead of using 'TE'
-        # This creates a descriptive subtheme name based on theme and category
-        meaningful_subtheme_name = f"{theme} - {category}"
-        print(f"Processing: Theme={theme}, Original Subtheme={subtheme}, Using={meaningful_subtheme_name}, Category={category}")
-        
-        theme_id = conn.execute(text("SELECT id FROM themes WHERE name = :name"), {"name": theme}).scalar()
-        if not theme_id:
-            print(f"Warning: Theme '{theme}' not found in database")
-            continue
-            
-        conn.execute(subthemes.insert().values(theme_id=theme_id, name=meaningful_subtheme_name).prefix_with('IGNORE'))
-        subtheme_id = conn.execute(text("SELECT id FROM subthemes WHERE theme_id = :theme_id AND name = :name"), 
-                                  {"theme_id": theme_id, "name": meaningful_subtheme_name}).scalar()
-        if not subtheme_id:
-            print(f"Warning: Subtheme '{subtheme}' not properly inserted")
-            continue
-            
-        conn.execute(categories.insert().values(subtheme_id=subtheme_id, name=category).prefix_with('IGNORE'))
-        category_id = conn.execute(text("SELECT id FROM categories WHERE subtheme_id = :subtheme_id AND name = :name"), 
-                                  {"subtheme_id": subtheme_id, "name": category}).scalar()
-        if not category_id:
-            print(f"Warning: Category '{category}' not properly inserted")
-            continue
-            
-        column_mapping[col] = category_id
+    try:
+        # Use the app's context to work with the database session
+        with app_instance.app_context():
+            # Check if data already exists (simple check on themes)
+            if db.session.query(Theme).first():
+                logging.info("Database already contains data. Skipping population.")
+                return
 
-# Insert names and their category associations
-with engine.begin() as conn:  # Using begin() creates a transaction that will be committed automatically
-    for name in df.index:
-        conn.execute(names.insert().values(name=str(name)).prefix_with('IGNORE'))
-        name_id = conn.execute(text("SELECT id FROM names WHERE name = :name"), {"name": str(name)}).scalar()
-        row = df.loc[name]
-        for col in df.columns:
-            if row[col] == 'x':
-                category_id = column_mapping[col]
-                conn.execute(name_categories.insert().values(name_id=name_id, category_id=category_id).prefix_with('IGNORE'))
+            logging.info("Reading tool_set.xlsx...")
+            try:
+                df = pd.read_excel('tool_set.xlsx', header=[0, 1, 2], index_col=0)
+                logging.info("Excel file read successfully.")
+            except FileNotFoundError:
+                logging.error("Error: tool_set.xlsx not found. Cannot populate database.")
+                return
+            except Exception as e:
+                logging.error(f"Error reading tool_set.xlsx: {e}", exc_info=True)
+                return
 
-print("Data successfully uploaded to MySQL database.")
+            # --- Data Processing --- 
+            themes_cache = {}
+            subthemes_cache = {}
+            categories_cache = {}
+            names_cache = {}
+
+            logging.info("Processing Excel data and inserting into database...")
+            for col in df.columns:
+                theme_name, subtheme_name_orig, category_name = col
+                
+                # Skip if any part of the hierarchy is NaN or empty strings
+                if pd.isna(theme_name) or not theme_name.strip() or \
+                   pd.isna(subtheme_name_orig) or not subtheme_name_orig.strip() or \
+                   pd.isna(category_name) or not category_name.strip():
+                    # logging.warning(f"Skipping column with missing/empty values: {col}")
+                    continue
+
+                # --- Theme --- 
+                theme = themes_cache.get(theme_name)
+                if not theme:
+                    theme = db.session.query(Theme).filter_by(name=theme_name).first()
+                    if not theme:
+                        theme = Theme(name=theme_name)
+                        db.session.add(theme)
+                        db.session.flush() # Flush to get the ID if needed immediately
+                    themes_cache[theme_name] = theme
+
+                # --- Subtheme --- 
+                # Use a combination for uniqueness if original subtheme names are ambiguous
+                subtheme_key = (theme.id, subtheme_name_orig) 
+                subtheme = subthemes_cache.get(subtheme_key)
+                if not subtheme:
+                    subtheme = db.session.query(Subtheme).filter_by(theme_id=theme.id, name=subtheme_name_orig).first()
+                    if not subtheme:
+                        subtheme = Subtheme(theme_id=theme.id, name=subtheme_name_orig)
+                        db.session.add(subtheme)
+                        db.session.flush()
+                    subthemes_cache[subtheme_key] = subtheme
+
+                # --- Category --- 
+                category_key = (subtheme.id, category_name)
+                category = categories_cache.get(category_key)
+                if not category:
+                    category = db.session.query(Category).filter_by(subtheme_id=subtheme.id, name=category_name).first()
+                    if not category:
+                        category = Category(subtheme_id=subtheme.id, name=category_name)
+                        db.session.add(category)
+                        db.session.flush()
+                    categories_cache[category_key] = category
+
+                # --- Names and Associations --- 
+                for name_str in df[col].dropna():
+                    name_str = str(name_str).strip()
+                    if not name_str:
+                        continue
+                        
+                    name_obj = names_cache.get(name_str)
+                    if not name_obj:
+                        name_obj = db.session.query(Name).filter_by(name=name_str).first()
+                        if not name_obj:
+                            name_obj = Name(name=name_str)
+                            db.session.add(name_obj)
+                            db.session.flush()
+                        names_cache[name_str] = name_obj
+
+                    # --- Association (NameCategory) --- 
+                    # Check if association already exists
+                    assoc_exists = db.session.query(NameCategory).filter_by(name_id=name_obj.id, category_id=category.id).first()
+                    if not assoc_exists:
+                        # Use direct insertion for composite primary key tables if merge doesn't work well
+                        new_assoc = NameCategory(name_id=name_obj.id, category_id=category.id)
+                        db.session.add(new_assoc)
+                        # Flush periodically might be needed for very large datasets, but commit at the end is usually fine
+
+            logging.info("Committing changes to the database...")
+            db.session.commit()
+            logging.info("Database population completed successfully.")
+
+    except Exception as e:
+        logging.error(f"An error occurred during database population: {e}", exc_info=True)
+        db.session.rollback() # Rollback in case of error
+
+# --- Optional: Allow running this script directly for local testing --- 
+if __name__ == '__main__':
+    # This requires app.py to be runnable and configured correctly
+    # You might need to create a temporary Flask app instance here if running standalone
+    from app import app as flask_app # Import the app instance from app.py
+    logging.basicConfig(level=logging.INFO)
+    print("Running tool_set_processor directly...")
+    populate_db_from_excel(flask_app)
+    print("Direct execution finished.")
