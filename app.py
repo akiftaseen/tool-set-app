@@ -4,6 +4,7 @@ from functools import wraps
 import random
 import logging
 import os
+from sqlalchemy import inspect
 
 logging.basicConfig(level=logging.INFO)  # Add basic logging
 
@@ -13,30 +14,12 @@ app.secret_key = 'your-secret-key'  # Replace with a secure key
 # Import database configuration
 from config import DATABASE_URL
 
-# Configure SQLAlchemy with the appropriate database URL
+# Configure SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+db = SQLAlchemy()  # Initialize SQLAlchemy without the app first
 
-# Create tables *before* initializing Dash app
-logging.info("Attempting to create database tables...")  # Log before
-try:
-    with app.app_context():
-        db.create_all()
-    logging.info("Database tables should be created (or already exist).")  # Log after
-except Exception as e:
-    logging.error(f"Error during db.create_all(): {e}", exc_info=True)  # Log any errors
-
-# Now import and initialize the Dash app
-logging.info("Importing and initializing Dash app...")  # Log before Dash init
-from dashboard import get_dash_app
-try:
-    dash_app = get_dash_app(app)  # Pass the Flask app instance
-    logging.info("Dash app initialized.")  # Log after Dash init
-except Exception as e:
-    logging.error(f"Error during Dash app initialization: {e}", exc_info=True)  # Log Dash errors
-
-# Models
+# Models MUST be defined or imported here so SQLAlchemy knows about them
 class Theme(db.Model):
     __tablename__ = 'themes'
     id = db.Column(db.Integer, primary_key=True)
@@ -55,18 +38,50 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     subtheme_id = db.Column(db.Integer, db.ForeignKey('subthemes.id'))
     name = db.Column(db.String(255))
-    names = db.relationship('Name', secondary='name_categories')
+    names = db.relationship('Name', secondary='name_categories', back_populates='categories')
 
 class Name(db.Model):
     __tablename__ = 'names'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), unique=True)
-    categories = db.relationship('Category', secondary='name_categories')
+    categories = db.relationship('Category', secondary='name_categories', back_populates='names')
 
 class NameCategory(db.Model):
     __tablename__ = 'name_categories'
     name_id = db.Column(db.Integer, db.ForeignKey('names.id'), primary_key=True)
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), primary_key=True)
+
+# Now initialize db with the app
+db.init_app(app)
+
+# Function to Create Tables
+def create_tables(app_instance):
+    with app_instance.app_context():
+        logging.info("Inside app_context, attempting db.create_all()...")
+        try:
+            db.create_all()
+            logging.info("db.create_all() executed.")
+            inspector = inspect(db.engine)
+            if inspector.has_table("themes"):
+                logging.info("Verified 'themes' table exists after create_all.")
+            else:
+                logging.warning("WARNING: 'themes' table NOT found after create_all.")
+        except Exception as e:
+            logging.error(f"Error during db.create_all() inside context: {e}", exc_info=True)
+
+# Create Tables Explicitly
+logging.info("Calling create_tables function...")
+create_tables(app)
+logging.info("Finished calling create_tables function.")
+
+# Import and Initialize Dash App
+logging.info("Importing and initializing Dash app...")
+from dashboard import get_dash_app
+try:
+    dash_app = get_dash_app(app)  # Pass the Flask app instance
+    logging.info("Dash app initialized.")
+except Exception as e:
+    logging.error(f"Error during Dash app initialization: {e}", exc_info=True)
 
 # Login required decorator
 def login_required(f):
@@ -80,8 +95,14 @@ def login_required(f):
 # Front Portal Routes
 @app.route('/')
 def index():
-    themes = Theme.query.all()
-    return render_template('index.html', themes=themes)
+    logging.info("Accessing index route...")
+    try:
+        themes = Theme.query.all()
+        logging.info(f"Found {len(themes)} themes.")
+        return render_template('index.html', themes=themes)
+    except Exception as e:
+        logging.error(f"Error in index route querying themes: {e}", exc_info=True)
+        return "Error loading themes. Database might not be ready.", 500
 
 @app.route('/api/subthemes')
 def get_subthemes():
@@ -91,12 +112,10 @@ def get_subthemes():
     except (TypeError, ValueError):
         return jsonify([])
     subthemes = Subtheme.query.filter_by(theme_id=theme_id).all()
-    # Return descriptive subtheme names combining theme and subtheme to avoid duplicates
     response = jsonify([
         {'id': s.id, 'name': f"{s.theme.name} - {s.name}"}
         for s in subthemes
     ])
-    # Ensure no CORS or authentication issues
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
@@ -108,12 +127,10 @@ def get_categories():
     except (TypeError, ValueError):
         return jsonify([])
     categories = Category.query.filter_by(subtheme_id=subtheme_id).all()
-    # Return descriptive category names combining theme, subtheme, and category
     response = jsonify([
         {'id': c.id, 'name': f"{c.subtheme.theme.name} - {c.subtheme.name} - {c.name}"}
         for c in categories
     ])
-    # Ensure no CORS or authentication issues
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
@@ -130,7 +147,6 @@ def get_random_name():
                         'category': category.name})
     else:
         response = jsonify({'name': None, 'count': 0})
-    # Ensure no CORS or authentication issues
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
@@ -153,13 +169,11 @@ def logout():
 @app.route('/admin')
 @login_required
 def admin():
-    # Fetch all data needed for the admin table
     themes = Theme.query.order_by(Theme.name).all()
     subthemes = Subtheme.query.join(Theme).order_by(Theme.name, Subtheme.name).all()
     categories = Category.query.join(Category.subtheme).join(Subtheme.theme).order_by(Theme.name, Subtheme.name, Category.name).all()
     names = Name.query.order_by(Name.name).all()
 
-    # Create a dictionary to easily check Name-Category associations
     name_category_map = {}
     associations = NameCategory.query.all()
     for assoc in associations:
@@ -167,7 +181,6 @@ def admin():
             name_category_map[assoc.name_id] = set()
         name_category_map[assoc.name_id].add(assoc.category_id)
 
-    # Compute theme_spans and subtheme_spans for table headers
     theme_spans = {}
     subtheme_spans = {}
     for cat in categories:
@@ -213,12 +226,10 @@ def update_data():
                 Name.query.filter_by(id=data['name_id']).delete()
     return jsonify({'status': 'success'})
 
-# Add a simple root route for health check if needed
 @app.route('/_health')
 def health_check():
     return "OK", 200
 
 if __name__ == '__main__':
-    # This part is mainly for local development, Render uses Gunicorn
     port = int(os.environ.get('PORT', 5001))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(debug=False, host='0.0.0.0', port=port)
