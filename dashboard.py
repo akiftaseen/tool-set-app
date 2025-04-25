@@ -52,7 +52,7 @@ custom_theme = {
     }
 }
 
-# We'll initialize the Dash app in get_dash_app() function with the Flask server
+# Initialize Dash app variable
 dash_app = None
 
 # Define the layout to be used in get_dash_app()
@@ -541,7 +541,7 @@ def register_callbacks(app):
         return options, filtered_values
 
 # Function to get dash app
-def get_dash_app():
+def get_dash_app(server):
     global dash_app
     if dash_app is None:
         # Add Bootstrap 5 CSS and JS
@@ -556,6 +556,7 @@ def get_dash_app():
         
         dash_app = dash.Dash(
             __name__,
+            server=server,
             url_base_pathname='/dashboard/',
             external_stylesheets=external_stylesheets,
             external_scripts=external_scripts,
