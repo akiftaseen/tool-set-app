@@ -13,11 +13,6 @@ from config import DATABASE_URL
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Additional configuration for PostgreSQL if needed
-if 'postgresql' in DATABASE_URL:
-    # Disable the "prefix" feature in PostgreSQL which is incompatible with MySQL's IGNORE
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'postgresql_use_native_options': False}
-
 db = SQLAlchemy(app)
 
 # We'll import and initialize the Dash app after creating the Flask app
