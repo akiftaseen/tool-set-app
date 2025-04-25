@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
 from functools import wraps
 import random
 import logging
 import os
 from sqlalchemy import inspect
 from tool_set_processor import populate_db_from_excel
+from models import db, Theme, Subtheme, Category, Name, NameCategory
 
 logging.basicConfig(level=logging.INFO)  # Add basic logging
 
@@ -18,39 +18,6 @@ from config import DATABASE_URL
 # Configure SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy()  # Initialize SQLAlchemy without the app first
-
-# Models MUST be defined or imported here so SQLAlchemy knows about them
-class Theme(db.Model):
-    __tablename__ = 'themes'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), unique=True)
-    subthemes = db.relationship('Subtheme', backref='theme')
-
-class Subtheme(db.Model):
-    __tablename__ = 'subthemes'
-    id = db.Column(db.Integer, primary_key=True)
-    theme_id = db.Column(db.Integer, db.ForeignKey('themes.id'))
-    name = db.Column(db.String(255))
-    categories = db.relationship('Category', backref='subtheme')
-
-class Category(db.Model):
-    __tablename__ = 'categories'
-    id = db.Column(db.Integer, primary_key=True)
-    subtheme_id = db.Column(db.Integer, db.ForeignKey('subthemes.id'))
-    name = db.Column(db.String(255))
-    names = db.relationship('Name', secondary='name_categories', back_populates='categories')
-
-class Name(db.Model):
-    __tablename__ = 'names'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), unique=True)
-    categories = db.relationship('Category', secondary='name_categories', back_populates='names')
-
-class NameCategory(db.Model):
-    __tablename__ = 'name_categories'
-    name_id = db.Column(db.Integer, db.ForeignKey('names.id'), primary_key=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('categories.id'), primary_key=True)
 
 # Now initialize db with the app
 db.init_app(app)

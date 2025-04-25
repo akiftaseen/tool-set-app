@@ -1,11 +1,8 @@
 import pandas as pd
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine, inspect
 import logging
 
-# Import db object and models from app.py
-# Assuming app.py is in the same directory
-from app import db, Theme, Subtheme, Category, Name, NameCategory
+# Import db object and models from models.py
+from models import db, Theme, Subtheme, Category, Name, NameCategory
 from config import DATABASE_URL # Use the same config as the app
 
 def populate_db_from_excel(app_instance):
