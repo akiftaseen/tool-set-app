@@ -12,17 +12,15 @@ from config import DATABASE_URL
 # Configure SQLAlchemy with the appropriate database URL
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
 db = SQLAlchemy(app)
 
-# Automatically create all tables on startup (avoids needing the shell)
+# Create tables *before* initializing Dash app
 with app.app_context():
     db.create_all()
 
-# We'll import and initialize the Dash app after creating the Flask app
+# Now import and initialize the Dash app
 from dashboard import get_dash_app
-dash_app = get_dash_app()
-dash_app.init_app(app)  # Initialize the Dash app with our Flask app
+dash_app = get_dash_app(app)  # Pass the Flask app instance
 
 # Models
 class Theme(db.Model):
